@@ -2,8 +2,6 @@ const rp = require('request-promise');
 const $ = require('cheerio');
 const url = 'http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx';
 
-const info = []; // result of data scrape
-
 rp(url)
     .then((html) => {
         let array = []
