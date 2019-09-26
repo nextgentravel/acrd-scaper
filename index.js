@@ -70,21 +70,21 @@ app.get('/province/:provinceCode/cities', (req, res) => {
                     let output = []
                     response.forEach((item) => {
                         let list = item.result.split(', ');
-                        let splitTopTier = list[0].split(': ');
+                        let splitCity = list[0].split(': ');
                         list.splice(0,1)
-                        let secondTier = splitTopTier.concat(list);
-                        secondTier.sort();
-                        let topTier = "";
-                        // console.log("##### ", splitTopTier);
-                        if (splitTopTier[1] === "See Ottawa ON") {
-                            topTier = 'Ottawa ON'
-                            secondTier.splice(1,1)
+                        let suburb = splitCity.concat(list);
+                        suburb.sort();
+                        let city = "";
+                        // console.log("##### ", splitCity);
+                        if (splitCity[1] === "See Ottawa ON") {
+                            city = 'Ottawa ON'
+                            suburb.splice(1,1)
                         } else {
-                            topTier = splitTopTier[0]
+                            city = splitCity[0]
                         }
                         let result = {
-                            topTier: topTier,
-                            secondTier: secondTier,
+                            city: city,
+                            suburb: suburb,
                         }
                         output.push(result)
                     })
@@ -148,13 +148,13 @@ app.get('/province/:provinceCode/cities', (req, res) => {
     // .data(function (data) {
     //     console.log(data);
     //     let list = data.province.split(', ');
-    //     let splitTopTier = list[0].split(': ');
+    //     let splitCity = list[0].split(': ');
     //     list.splice(0,1)
-    //     let secondTier = splitTopTier.concat(list);
-    //     secondTier.sort();
+    //     let suburb = splitCity.concat(list);
+    //     suburb.sort();
     //     let result = {
-    //         topTier: splitTopTier[0],
-    //         secondTier: secondTier,
+    //         city: splitCity[0],
+    //         suburb: suburb,
     //     }
     //     res.send(JSON.stringify(result));
     // })
