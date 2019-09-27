@@ -4,10 +4,12 @@ const rp = require('request-promise');
 const cheerio = require('cheerio');
 const osmosis = require('osmosis');
 const departmentList = 'http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx';
-
+var cors = require('cors')
 const express = require('express')
 const app = express()
 const port = process.env.PORT || 5000;
+
+app.use(cors())
 
 let provinces = {
     "AB": "Alberta",
@@ -49,24 +51,21 @@ app.get('/province/:provinceCode/cities', (req, res) => {
     let provinceCode = req.params.provinceCode.toUpperCase();
     let province = provinces[provinceCode]
 
-    function getHomePageTrending() {
+    function getCities() {
         return new Promise((resolve, reject) => {
             let response = [];
-    
             osmosis
-                // Load steemit.com
                 .get('http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx')
-                // Find all posts in postslist__summaries list
-                .find(':contains("Québec") + ul > li')
-                // Create an object with title and summary
+                .find(`:contains("${province}") + ul > li`)
                 .set({
                     'result': '.',
-                    // summary: '.PostSummary__body'
                 })
-                // Push post into an array
                 .data(res => {response.push(res)})
                 .error(err => reject(err))
                 .done(() => {
+                    if (response.length === 0) {
+                        res.send({'error': 'no data found'});
+                    }
                     let output = []
                     response.forEach((item) => {
                         let list = item.result.split(', ');
@@ -74,8 +73,8 @@ app.get('/province/:provinceCode/cities', (req, res) => {
                         list.splice(0,1)
                         let suburb = splitCity.concat(list);
                         suburb.sort();
+                        suburb = suburb.map(e => e.trim());
                         let city = "";
-                        // console.log("##### ", splitCity);
                         if (splitCity[1] === "See Ottawa ON") {
                             city = 'Ottawa ON'
                             suburb.splice(1,1)
@@ -88,79 +87,125 @@ app.get('/province/:provinceCode/cities', (req, res) => {
                         }
                         output.push(result)
                     })
-                    res.send(JSON.stringify(output));
                     resolve(output)
                 });
         });
     }
-    
-    getHomePageTrending().then(res => {
-        console.log(res);
+    getCities().then(result => {
+        res.send(JSON.stringify(result));
     });
+});
 
+app.get('/cities', (req, res) => {
+    let provinceCodes = Object.keys(provinces);
 
+    function getCities(provinceCode) {
+        return new Promise((resolve, reject) => {
+            try {
+                let response = [];
+                let province = provinces[provinceCode];
+                    osmosis
+                        .get('http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx')
+                        .find(`:contains("${province}") + ul > li`)
+                        .set({
+                            'result': '.' || "",
+                        })
+                        .data(result => {
+                            response.push(result)
+                        })
+                        .error(err => resolve(err))
+                        .done(() => {
+                            console.log(province)
+                            if (response.length === 0) {
+                                resolve('no results')
+                            }
+                            let output = []
+                            response.forEach((item) => {
+                                let list = item.result.split(', ');
+                                let splitCity = list[0].split(': ');
+                                list.splice(0,1)
+                                let suburb = splitCity.concat(list);
+                                suburb.sort();
+                                suburb = suburb.map(e => e.trim());
+                                let city = "";
+                                if (splitCity[1] === "See Ottawa ON") {
+                                    city = 'Ottawa ON'
+                                    suburb.splice(1,1)
+                                } else {
+                                    city = splitCity[0]
+                                }
+                                let result = {
+                                    city: city,
+                                    suburb: suburb,
+                                }
+                                output.push(result)
+                            })
+                            resolve(output)
+                        });
+            } catch {
+                resolve('no results')
+            }
+        }).catch((err) => {
+            resolve(err)
+        });
+    }
 
+    let queries = [];
 
-    // console.log(province);
+    provinceCodes.forEach((provinceCode) => {
+        queries.push(getCities(provinceCode));
+    })
 
-    // function scrapePopulations() {
-    //     return new Promise((resolve, reject) => {
-    //       let results = [];
-    //       osmosis
-    //       .get('http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx')
-    //       .find(':contains("Québec") + ul')
-    //       .set({
-    //         set: 'li',
-    //       })
-    //       .data(item => results.push(item))
-    //       .done(() => resolve(results));
-    //     });
-    //   }
-      
-    //   scrapePopulations().then(data => console.log(data));
+    console.log(queries);
 
+    Promise.all(queries)
+        .then(function(values) {
+            let citiesList = []
+            let suburbCityList = {}
+            values.forEach((value => {
+                if (Array.isArray(value)) {
+                    value.forEach((item) => {
+                        item.suburb.forEach((suburb) => {
+                            citiesList.push(suburb)
+                            suburbCityList[suburb] = item.city
+                        })
+                    })
+                }
 
-    // osmosis
-    //     .get('http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx')
-    //     .set([
-    //         osmosis
-    //         .find(':contains("British Columbia") + ul > li.item')
-    //         .set({
-    //             state: 'td[3]',
-    //             population: 'td[4]'
-    //         })
-    //     ])
-    //     .data(items => console.log(items));
+            }))
 
-    // let results = [];
-    // osmosis
-    //     .get('http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx')
-    //     .find(`:contains("${province}") + ul`)
-    //     .set({
-    //         state: 'li'
-    //     })
-    //     .data(item => {
-    //         results.push(item)
-    //         console.log(results)
-    //     })
+            res.send(JSON.stringify({
+                citiesList,
+                suburbCityList
+            }));
+        })
+        .catch(error => { 
+            console.error(error.message)
+        });
+});
 
-
-    // .data(function (data) {
-    //     console.log(data);
-    //     let list = data.province.split(', ');
-    //     let splitCity = list[0].split(': ');
-    //     list.splice(0,1)
-    //     let suburb = splitCity.concat(list);
-    //     suburb.sort();
-    //     let result = {
-    //         city: splitCity[0],
-    //         suburb: suburb,
-    //     }
-    //     res.send(JSON.stringify(result));
-    // })
-    // .error(function (err) {
-    //     console.log(err)
-    // })
+app.get('/:city/rules', (req, res) => {
+    let cityName = req.params.city
+    function getRules() {
+        return new Promise((resolve, reject) => {
+            let response = [];
+            osmosis
+                .get('http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx')
+                .find(`tr:contains("${cityName}")`)
+                .set({
+                    '01-04': 'td[2]',
+                    '05-08': 'td[3]',
+                    '09-12': 'td[4]',
+                })
+                .error(err => reject(err))
+                .then(async (context, data) => {
+                    resolve(data);
+                })
+        });
+    }
+    getRules().then(result => {
+        res.send(JSON.stringify(result));
+    });
 });
 
 app.listen(port, () => console.log(`listening on port ${port}!`))
