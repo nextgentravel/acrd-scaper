@@ -3,7 +3,7 @@ var util = require('util')
 const rp = require('request-promise');
 const cheerio = require('cheerio');
 const osmosis = require('osmosis');
-const departmentList = 'http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx';
+const departmentList = 'source';
 var cors = require('cors')
 const express = require('express')
 const app = express()
@@ -28,6 +28,8 @@ let provinces = {
 }
 
 app.get('/', (req, res) => res.send('Unofficial ACRD API'))
+
+app.use('/source', express.static('source'))
 
 app.get('/departments', (req, res) => {
     rp(departmentList)
@@ -55,7 +57,7 @@ app.get('/province/:provinceCode/cities', (req, res) => {
         return new Promise((resolve, reject) => {
             let response = [];
             osmosis
-                .get('http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx')
+                .get('http://localhost:5000/source/acrd.html')
                 .find(`:contains("${province}") + ul > li`)
                 .set({
                     'result': '.',
@@ -105,7 +107,7 @@ app.get('/cities', (req, res) => {
                 let response = [];
                 let province = provinces[provinceCode];
                     osmosis
-                        .get('http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx')
+                        .get('http://localhost:5000/source/acrd.html')
                         .find(`:contains("${province}") + ul > li`)
                         .set({
                             'result': '.' || "",
@@ -127,12 +129,13 @@ app.get('/cities', (req, res) => {
                                 let suburb = splitCity.concat(list);
                                 suburb.sort();
                                 suburb = suburb.map(e => e.trim());
+                                suburb = suburb.map(e => e + " " + provinceCode)
                                 let city = "";
                                 if (splitCity[1] === "See Ottawa ON") {
                                     city = 'Ottawa ON'
                                     suburb.splice(1,1)
                                 } else {
-                                    city = splitCity[0]
+                                    city = splitCity[0] + " " + provinceCode
                                 }
                                 let result = {
                                     city: city,
@@ -150,6 +153,35 @@ app.get('/cities', (req, res) => {
         });
     }
 
+
+
+    function getOtherCities(provinceCode) {
+        return new Promise((resolve, reject) => {
+            try {
+                let response = [];
+                let province = provinces[provinceCode];
+                    osmosis
+                        .get('http://localhost:5000/source/acrd.html')
+                        .find(`table > caption:contains("(Canada)") !> table > tbody > tr`)
+                        .set({
+                            'result': 'td[1]' || "",
+                        })
+                        .data(result => {
+                            console.log(result)
+                            response.push(result)
+                        })
+                        .error(err => resolve(err))
+                        .done(() => {
+                            resolve(response);
+                        });
+            } catch {
+                resolve([])
+            }
+        }).catch((err) => {
+            resolve([])
+        });
+    }
+
     let queries = [];
 
     provinceCodes.forEach((provinceCode) => {
@@ -162,22 +194,36 @@ app.get('/cities', (req, res) => {
         .then(function(values) {
             let citiesList = []
             let suburbCityList = {}
-            values.forEach((value => {
-                if (Array.isArray(value)) {
-                    value.forEach((item) => {
-                        item.suburb.forEach((suburb) => {
-                            citiesList.push(suburb)
-                            suburbCityList[suburb] = item.city
+
+            getOtherCities()
+            .then(result => {
+                console.log(result)
+                result.forEach(city => {
+                    citiesList.push(city.result);
+                })
+
+                values.forEach((value => {
+                    if (Array.isArray(value)) {
+                        value.forEach((item) => {
+                            item.suburb.forEach((suburb) => {
+                                citiesList.push(suburb)
+                                suburbCityList[suburb] = item.city
+                            })
                         })
-                    })
-                }
+                    }
+                }))
+                let uniqueCityList = [...new Set(citiesList)];
+                uniqueCityList.sort()
+                res.send(JSON.stringify({
+                    citiesList: uniqueCityList,
+                    suburbCityList
+                }));
+            })
+            .catch(err => {
+                console.log(err)
+            })
 
-            }))
 
-            res.send(JSON.stringify({
-                citiesList,
-                suburbCityList
-            }));
         })
         .catch(error => { 
             console.error(error.message)
@@ -185,12 +231,13 @@ app.get('/cities', (req, res) => {
 });
 
 app.get('/:city/rules', (req, res) => {
-    let cityName = req.params.city
+    let cityName = req.params.city.replace('sss','/')
+    console.log("City Rules Requested: ", cityName)
     function getRules() {
         return new Promise((resolve, reject) => {
             let response = [];
             osmosis
-                .get('http://rehelv-acrd.tpsgc-pwgsc.gc.ca/acrds/preface-eng.aspx')
+                .get('http://localhost:5000/source/acrd.html')
                 .find(`tr:contains("${cityName}")`)
                 .set({
                     '01-04': 'td[2]',
@@ -203,9 +250,14 @@ app.get('/:city/rules', (req, res) => {
                 })
         });
     }
-    getRules().then(result => {
-        res.send(JSON.stringify(result));
-    });
+
+    getRules()
+        .then(result => {
+            res.send(JSON.stringify(result));
+        })
+        .catch(err => {
+            res.send(JSON.stringify({ error: 'no results' }));
+        });
 });
 
 app.listen(port, () => console.log(`listening on port ${port}!`))
