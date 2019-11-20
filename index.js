@@ -976,6 +976,31 @@ app.get('/:city/rules', (req, res) => {
                                 }
                             }
                         }
+                        else if (data.includes(' to ')) {
+                            let months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+                            let splitAndString = data.split(/[—, ]+/);
+
+                            for (let i = 0; i < splitAndString.length; i++) {
+                                if (splitAndString[i] === 'to') {
+                                    let lastMonth = i - 1;
+                                    let nextMonth = months.indexOf(splitAndString[lastMonth]) + 1
+                                    splitAndString.splice(i, 0, months[nextMonth])
+                                    i = i + 1
+                                }
+                            }
+   
+                            for (let i = parseInt(indexes[0]); i <= parseInt(indexes[1]); i++) {
+                                if (splitAndString.includes(monthsArray[i - 1].label)) {
+                                    let indexOfLabel = splitAndString.indexOf(monthsArray[i - 1].label)
+                                    for (let j = indexOfLabel; j >= 0; j = j - 1) {
+                                        if (/^\$(?=.*\d)\d{0,6}(\.\d{1,2})?$/g.test(splitAndString[j])) {
+                                            monthsArray[i - 1].rate = splitAndString[j];
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     function processMonthlyRate(data) {
@@ -994,6 +1019,15 @@ app.get('/:city/rules', (req, res) => {
                                     let value = extractValue(data[key], splitKey)
                                 }
                             }
+
+                            if (data[key].includes(' to ')) {
+                                let splitKey = key.split('-');
+                                for (let i = parseInt(splitKey[0]); i <= parseInt(splitKey[1]); i++) {
+                                    let value = extractValue(data[key], splitKey)
+                                }
+                            }
+
+
                         });
                     }
 
