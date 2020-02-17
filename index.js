@@ -61,7 +61,7 @@ app.get('/province/:provinceCode/cities', (req, res) => {
         return new Promise((resolve, reject) => {
             let response = [];
             osmosis
-                .get(`http://localhost:${port}/source/acrd.html`)
+                .get(`http://localhost:${port}/source/acrd2020.html`)
                 .find(`:contains("${province}") + ul > li`)
                 .set({
                     'result': '.',
@@ -872,7 +872,7 @@ app.get('/old/:city/rules', (req, res) => {
         return new Promise((resolve, reject) => {
             let response = [];
             osmosis
-                .get(`http://localhost:${port}/source/acrd.html`)
+                .get(`http://localhost:${port}/source/acrd2020.html`)
                 .find(`tr:contains("${cityName}")`)
                 .set({
                     '01-04': 'td[2]',
@@ -902,7 +902,7 @@ app.get('/:city/rules', (req, res) => {
         return new Promise((resolve, reject) => {
             let response = [];
             osmosis
-                .get(`http://localhost:${port}/source/acrd.html`)
+                .get(`http://localhost:${port}/source/acrd2020.html`)
                 .find(`tr:contains("${cityName}")`)
                 .set({
                     '01-04': 'td[2]',
